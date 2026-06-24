@@ -1,0 +1,7 @@
+{
+  "good_agent.md": {"conformant": true, "issues": []},
+  "broken_missing_name.md": {"conformant": false, "issues": ["missing-name"]},
+  "broken_missing_description.md": {"conformant": false, "issues": ["missing-description"]},
+  "broken_bad_frontmatter.md": {"conformant": false, "issues": ["invalid-frontmatter"]},
+  "broken_obsolete_workaround.md": {"conformant": true, "issues": ["obsolete-workaround"]}
+}
