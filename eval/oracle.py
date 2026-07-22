@@ -5,7 +5,8 @@ oracle.py — 査読の検出力を「ラベル付き見本」で測るオラク
 
 査読（レビュー）は正解出力が一意でない（指摘の書き方は自由）。だから golden では測れない。
 そこで、欠陥が分かっている見本（正例＋既知欠陥）を用意し、査読エージェントが
-各見本の欠陥を正しく見つけ、正例を通すかで採点する。＝検出力(recall)と誤検出のなさを、ラベルで測る。
+各見本の欠陥を過不足なく見つけ（期待 issue 集合との完全一致）、正例を通すかで採点する。
+＝検出力(recall)と誤検出のなさ（期待外 issue の併記・語彙外キーも FAIL）を、ラベルで測る。
 
 採点対象は「査読結果(JSON)」: {"<ファイル名>": {"conformant": bool, "issues": [キー...]}, ...}
 
@@ -30,7 +31,8 @@ if hasattr(sys.stdout, "reconfigure"):
 EVAL = Path(__file__).resolve().parent
 SELFTEST = EVAL / "selftest"
 
-# 見本ごとの正解ラベル： (conformant の正解, 必ず報告すべき issue キー)
+# 見本ごとの正解ラベル： (conformant の正解, 報告すべき issue キーの完全な集合)
+# 採点は完全一致：見逃しも、期待外 issue の併記（過剰報告）も、語彙外キーも FAIL。
 EXPECTED = {
     "good_agent.md": (True, set()),
     "broken_missing_name.md": (False, {"missing-name"}),
@@ -39,21 +41,29 @@ EXPECTED = {
     "broken_obsolete_workaround.md": (True, {"obsolete-workaround"}),  # 構造は適合・中身が陳腐化
 }
 
+# issue キーの語彙（.claude/agents/agent-spec-reviewer.md の観点と同じ4種）。語彙外キーの報告は FAIL。
+VOCAB = {"missing-name", "missing-description", "invalid-frontmatter", "obsolete-workaround"}
+
 
 def grade(verdicts):
     for fx, (exp_conf, exp_issues) in EXPECTED.items():
         v = verdicts.get(fx)
-        if not isinstance(v, dict) or "conformant" not in v or "issues" not in v:
+        if (not isinstance(v, dict) or "conformant" not in v
+                or not isinstance(v.get("issues"), list)):
             return ("FAIL", f"{fx}: 査読結果が無い／形式不正")
         reported = set(v["issues"])
+        unknown = sorted(reported - VOCAB)
+        if unknown:
+            return ("FAIL", f"{fx}: 語彙外の issue キー {unknown}（報告={sorted(reported)}）")
         if v["conformant"] != exp_conf:
             return ("FAIL", f"{fx}: conformant={v['conformant']}（正解 {exp_conf}）")
-        if not exp_issues.issubset(reported):
+        if reported != exp_issues:
             miss = sorted(exp_issues - reported)
-            return ("FAIL", f"{fx}: 欠陥 {miss} を見逃し（報告={sorted(reported)}）")
-        if exp_issues == set() and reported != set():
-            return ("FAIL", f"{fx}: 正例なのに誤検出（報告={sorted(reported)}）")
-    return ("PASS", f"全{len(EXPECTED)}件を正しく判定（欠陥を検出・正例を通す）")
+            if miss:
+                return ("FAIL", f"{fx}: 欠陥 {miss} を見逃し（報告={sorted(reported)}）")
+            extra = sorted(reported - exp_issues)
+            return ("FAIL", f"{fx}: 期待外の issue を誤検出 {extra}（過剰報告。報告={sorted(reported)}）")
+    return ("PASS", f"全{len(EXPECTED)}件を正しく判定（欠陥を過不足なく検出・正例を通す）")
 
 
 def grade_path(path):
@@ -82,6 +92,7 @@ def selftest():
     controls = [
         ("broken_blind.json", "全部 conformant＝何も見つけない（早く切り上げ）"),
         ("broken_misses_obsolete.json", "構造は見るが陳腐化を見逃す（浅い査読）"),
+        ("broken_overflag.json", "欠陥見本に全欠陥キーを常に併記（過剰報告）"),
     ]
     brows, caught = [], True
     for f, why in controls:
