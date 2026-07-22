@@ -1,6 +1,10 @@
 # agent-spec-reviewer
 
+*A Claude Code sub-agent that reviews agent definition files for spec conformance and obsolescence, paired with a deterministic oracle that scores the review's detection power on labeled defect fixtures.*
+
 Claude Code のサブエージェント定義（`.claude/agents/*.md`）を**仕様適合＋陳腐化の観点で査読する**エージェントと、**査読の検出力をラベル付き見本で採点する**オラクル（採点プログラム）。
+
+専門用語を使わない説明は [説明書.md](説明書.md) にあります。
 
 ## 概要
 
@@ -38,7 +42,7 @@ flowchart TD
 ```
 
 ## 合否（eval）
-正例＋既知欠陥（name 欠落・description 欠落・frontmatter 壊れ・陳腐化した回避策）の見本に対し、査読が欠陥を全部検出し正例を通せば PASS。浅い査読（陳腐化見逃し）は FAIL。
+正例＋既知欠陥（name 欠落・description 欠落・frontmatter 壊れ・陳腐化した回避策）の見本に対し、査読が各見本の欠陥を過不足なく検出し（期待 issue 集合と完全一致）、正例を通せば PASS。浅い査読（陳腐化見逃し）も、過剰報告（期待外 issue の併記・語彙外キー）も FAIL。
 
 ## ファイル構成
 - `.claude/agents/agent-spec-reviewer.md` … 査読エージェント定義（depth・docs URL の WebFetch 対応）
